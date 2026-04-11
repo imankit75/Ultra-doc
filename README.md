@@ -10,7 +10,7 @@ Runs **100% locally** — no cloud APIs, no internet required after setup.
 
 | Feature | Description |
 |---------|-------------|
-| **Document Upload** | Supports PDF, DOCX, TXT, and image files (PNG, JPG via OCR) |
+| **Document Upload** | PDF, DOCX, TXT, and standalone image files (PNG, JPG, JPEG, BMP, TIFF) |
 | **RAG Q&A** | Ask natural language questions grounded strictly in document content |
 | **Guardrails** | Multi-layer hallucination prevention |
 | **Confidence Scoring** | Weighted score from retrieval similarity, chunk agreement, and answer coverage |
@@ -18,6 +18,25 @@ Runs **100% locally** — no cloud APIs, no internet required after setup.
 | **100% Local** | Fully offline with Gemma 3 4B (GGUF) — no cloud APIs required |
 
 ---
+
+## Supported File Formats
+
+| Format | Extension | How it works |
+|--------|-----------|--------------|
+| **PDF** | `.pdf` | Text extracted directly from the PDF layer |
+| **Word Document** | `.docx`, `.doc` | Text + tables extracted from the document structure |
+| **Plain Text** | `.txt` | Loaded as-is |
+| **Standalone Image** | `.png`, `.jpg`, `.jpeg`, `.bmp`, `.tiff` | OCR via Tesseract extracts the text from the image |
+
+> [!CAUTION]
+> **Images embedded inside a PDF or DOCX are NOT supported.**
+> If your PDF or DOCX contains scanned pages or screenshots (i.e. the text is stored as an image rather than selectable text), the system will extract an empty result — no error, just no content.
+> 
+> ✅ **Works:** A text-based PDF where you can select/copy text in a viewer
+> ✅ **Works:** A standalone `.png` / `.jpg` image file uploaded directly
+> ❌ **Does NOT work:** A scanned PDF (each page is an image inside a PDF)
+> ❌ **Does NOT work:** A DOCX with embedded screenshots or image-only pages
+
 
 ## Architecture
 
