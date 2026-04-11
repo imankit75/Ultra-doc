@@ -10,7 +10,7 @@ Runs **100% locally** — no cloud APIs, no internet required after setup.
 
 | Feature | Description |
 |---------|-------------|
-| **Document Upload** | PDF, DOCX, TXT, and standalone image files (PNG, JPG, JPEG, BMP, TIFF) |
+| **Document Upload** | PDF, DOCX, and TXT files |
 | **RAG Q&A** | Ask natural language questions grounded strictly in document content |
 | **Guardrails** | Multi-layer hallucination prevention |
 | **Confidence Scoring** | Weighted score from retrieval similarity, chunk agreement, and answer coverage |
@@ -21,21 +21,31 @@ Runs **100% locally** — no cloud APIs, no internet required after setup.
 
 ## Supported File Formats
 
-| Format | Extension | How it works |
-|--------|-----------|--------------|
-| **PDF** | `.pdf` | Text extracted directly from the PDF layer |
-| **Word Document** | `.docx`, `.doc` | Text + tables extracted from the document structure |
-| **Plain Text** | `.txt` | Loaded as-is |
-| **Standalone Image** | `.png`, `.jpg`, `.jpeg`, `.bmp`, `.tiff` | OCR via Tesseract extracts the text from the image |
+| Format | Extension | Status | How it works |
+|--------|-----------|--------|--------------|
+| **PDF** | `.pdf` | ✅ Supported | Text extracted directly from the PDF layer |
+| **Word Document** | `.docx`, `.doc` | ✅ Supported | Text + tables extracted from the document structure |
+| **Plain Text** | `.txt` | ✅ Supported | Loaded as-is |
+| **Image (PNG/JPG/etc.)** | `.png`, `.jpg`, `.jpeg`, `.bmp`, `.tiff` | ⚠️ Requires extra setup | OCR via Tesseract — needs separate binary install |
 
 > [!CAUTION]
-> **Images embedded inside a PDF or DOCX are NOT supported.**
-> If your PDF or DOCX contains scanned pages or screenshots (i.e. the text is stored as an image rather than selectable text), the system will extract an empty result — no error, just no content.
-> 
-> ✅ **Works:** A text-based PDF where you can select/copy text in a viewer
-> ✅ **Works:** A standalone `.png` / `.jpg` image file uploaded directly
-> ❌ **Does NOT work:** A scanned PDF (each page is an image inside a PDF)
-> ❌ **Does NOT work:** A DOCX with embedded screenshots or image-only pages
+> **Images (PNG, JPG, etc.) do NOT work out of the box.**
+> The code supports it in principle, but requires the **Tesseract binary** installed separately on your system:
+> - **Windows:** https://github.com/UB-Mannheim/tesseract/wiki
+> - **Linux:** `sudo apt-get install tesseract-ocr`
+> - **Mac:** `brew install tesseract`
+>
+> Without the Tesseract binary, uploading an image will throw an error.
+
+> [!CAUTION]
+> **Images embedded inside a PDF or DOCX are NOT supported — at all.**
+> If your PDF was scanned (pages are images, not selectable text), the system will return empty content — no error, just no data.
+>
+> ✅ **Works:** Text-based PDF (you can select/copy text in a PDF viewer)
+> ✅ **Works:** Normal DOCX with typed text and tables
+> ❌ **Does NOT work:** Scanned PDF (each page is a photo)
+> ❌ **Does NOT work:** DOCX with embedded screenshots or image-only pages
+> ❌ **Does NOT work:** PNG/JPG without Tesseract binary installed
 
 
 ## Architecture
