@@ -1,5 +1,5 @@
 # =============================================================
-# Ultra Doc-Intelligence — GPU Docker Compose (NVIDIA)
+# Ultra Doc-Intelligence — GPU Docker Compose (NVIDIA CUDA)
 # Requirements: NVIDIA GPU + nvidia-container-toolkit on host
 # Usage: docker compose -f docker-compose.gpu.yml up --build
 # =============================================================
@@ -8,19 +8,19 @@ services:
   ultra-doc:
     build:
       context: .
-      dockerfile: Dockerfile.gpu
+      dockerfile: Dockerfile
+      args:
+        ENABLE_GPU: "true"        # CUDA build
     image: ultra-doc:gpu
     container_name: ultra-doc-gpu
     ports:
       - "7860:7860"
     volumes:
-      # Model files (read-only, must be downloaded locally first)
-      - ./models:/app/models:ro
-      # Persistent storage
-      - ./uploads:/app/uploads
-      - ./chroma_db:/app/chroma_db
+      - ./models:/app/models:ro   # GGUF model (read-only)
+      - ./uploads:/app/uploads    # Uploaded documents
+      - ./chroma_db:/app/chroma_db  # Vector store
     environment:
-      - N_GPU_LAYERS=-1       # Offload ALL layers to GPU
+      - N_GPU_LAYERS=-1           # Offload ALL layers to GPU
       - KMP_DUPLICATE_LIB_OK=TRUE
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=compute,utility
@@ -32,9 +32,3 @@ services:
               count: 1
               capabilities: [gpu]
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:7860/"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 90s
