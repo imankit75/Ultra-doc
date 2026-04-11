@@ -4,24 +4,17 @@ __pycache__/
 *.pyo
 *.egg-info/
 
-# Runtime data (regenerated on each run — bind-mounted in Docker)
+# Runtime data (regenerated on each run)
 uploads/
 chroma_db/
 
-# Model files (too large for git — mount as Docker volume)
+# Model files (too large for git)
 models/
-# Keep directory structure
 !models/.gitkeep
-
-# Tessdata is included in the repo (needed for Docker COPY)
-# tessdata/ is NOT gitignored
 
 # Environment
 .env
 *.env
-
-# Docker
-.dockerignore
 
 # OS
 .DS_Store

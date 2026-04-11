@@ -2,7 +2,7 @@
 
 An AI-powered POC system for logistics document analysis. Upload a logistics document (Rate Confirmation, BOL, Shipment Instructions, Invoice, Pick List, etc.) and interact with it using natural language questions. Built as a simulated AI assistant inside a Transportation Management System (TMS).
 
-Runs **100% locally** — no cloud APIs, no LM Studio, no internet required after setup.
+Runs **100% locally** — no cloud APIs, no internet required after setup.
 
 ---
 
@@ -15,8 +15,7 @@ Runs **100% locally** — no cloud APIs, no LM Studio, no internet required afte
 | **Guardrails** | Multi-layer hallucination prevention |
 | **Confidence Scoring** | Weighted score from retrieval similarity, chunk agreement, and answer coverage |
 | **Structured Extraction** | Extract shipment data as clean JSON (shipment_id, shipper, consignee, rates, dates, line items…) |
-| **100% Local** | Runs fully offline with Gemma 3 4B (GGUF) — no cloud APIs required |
-| **CPU + GPU** | Works on CPU-only machines; GPU gives a major speed boost |
+| **100% Local** | Fully offline with Gemma 3 4B (GGUF) — no cloud APIs required |
 
 ---
 
@@ -48,8 +47,6 @@ Runs **100% locally** — no cloud APIs, no LM Studio, no internet required afte
 │  ┌──────────────────────────────────────┐                    │
 │  │     Gemma 3 4B (GGUF, Local)        │                    │
 │  │     via llama-cpp-python             │                    │
-│  │     CPU (n_gpu_layers=0) or          │                    │
-│  │     GPU (n_gpu_layers=-1)            │                    │
 │  └──────────────────────────────────────┘                    │
 └──────────────────────────────────────────────────────────────┘
 ```
@@ -58,64 +55,43 @@ Runs **100% locally** — no cloud APIs, no LM Studio, no internet required afte
 
 ## Quick Start
 
-### 1. Download the Model
+### 1. Create and activate a Conda environment
 
-Download `gemma-3-4b-it-Q4_K_M.gguf` from HuggingFace and place it at:
+```bash
+conda create -n ultra_doc python=3.11 -y
+conda activate ultra_doc
+```
 
+### 2. Install dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+> **GPU acceleration (optional):** Install llama-cpp-python with CUDA support for faster inference:
+> ```bash
+> CMAKE_ARGS="-DGGML_CUDA=on" pip install llama-cpp-python --force-reinstall
+> ```
+> Then set the environment variable: `set N_GPU_LAYERS=-1` (Windows) or `export N_GPU_LAYERS=-1` (Linux/Mac)
+
+### 3. Download the model
+
+Download `gemma-3-4b-it-Q4_K_M.gguf` and place it at:
 ```
 models/gemma-3-4b-it-GGUF/gemma-3-4b-it-Q4_K_M.gguf
 ```
 
 > **Download:** https://huggingface.co/bartowski/gemma-3-4b-it-GGUF
 
-### 2A. Run with Docker (Recommended)
-
-#### CPU (works on any machine)
-
-```bash
-docker compose up --build
-```
-
-#### GPU (NVIDIA — requires `nvidia-container-toolkit`)
-
-```bash
-docker compose -f docker-compose.gpu.yml up --build
-```
-
-Open **http://localhost:7860** in your browser.
-
----
-
-### 2B. Run Locally (without Docker)
-
-#### Install dependencies
-
-```bash
-pip install -r requirements.txt
-```
-
-> **Note:** For GPU support locally, install llama-cpp-python with CUDA:
-> ```bash
-> CMAKE_ARGS="-DGGML_CUDA=on" pip install llama-cpp-python
-> ```
-
-#### Set GPU mode (optional)
-
-```bash
-# CPU (default)
-export N_GPU_LAYERS=0
-
-# Full GPU offload
-export N_GPU_LAYERS=-1
-```
-
-#### Run the UI
+### 4. Run the Gradio UI
 
 ```bash
 python api.py
 ```
 
-#### Run CLI mode
+Open **http://localhost:7860** in your browser.
+
+### 5. (Optional) CLI mode
 
 ```bash
 python app.py <path_to_document>
@@ -123,28 +99,20 @@ python app.py <path_to_document>
 
 ---
 
-## Docker Reference
-
-| File | Purpose |
-|------|---------|
-| `Dockerfile` | CPU build — runs on any machine |
-| `Dockerfile.gpu` | GPU build — NVIDIA CUDA 12.1 |
-| `docker-compose.yml` | CPU compose (default) |
-| `docker-compose.gpu.yml` | GPU compose |
-
-### Environment Variables
+## Environment Variables
 
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `N_GPU_LAYERS` | `0` | `0` = CPU only · `-1` = all layers on GPU |
 
-### Mounted Volumes
+---
 
-| Mount | Purpose |
-|-------|---------|
-| `./models:/app/models` | GGUF model files (read-only) |
-| `./uploads:/app/uploads` | Uploaded documents (persistent) |
-| `./chroma_db:/app/chroma_db` | Vector store (persistent) |
+## How to Use
+
+1. **Upload a document** — PDF, DOCX, TXT, or image (PNG/JPG)
+2. Click **"Index Document"** — wait for the status message: `Success: Indexed X chunks`
+3. Type a question in the question box → click **"Get Answer"**
+4. Click **"Extract Shipment JSON"** to extract all structured fields as clean JSON
 
 ---
 
@@ -152,14 +120,14 @@ python app.py <path_to_document>
 
 ### Chunking Strategy
 
-- **Table-aware splitting** — preserves `TABLE START/END` blocks as intact chunks
+- **Table-aware splitting** — preserves table blocks as intact chunks
 - **Recursive splitting** with separator hierarchy: `\n\n` → `\n` → `. ` → ` `
 - **Chunk size:** 800 characters
 - **Overlap:** 100 characters — ensures context continuity at boundaries
 - Sentence-boundary aware: avoids splitting mid-sentence when possible
 
 ### Why this approach?
-Logistics documents contain structured data (addresses, dates, rates) mixed with free text and tables. Table-aware splitting keeps row data together while recursive splitting preserves logical blocks (paragraphs → sentences).
+Logistics documents contain structured data (addresses, dates, rates) mixed with free text and tables. Table-aware splitting keeps row data together while recursive splitting preserves logical blocks.
 
 ---
 
@@ -214,7 +182,7 @@ Color coded:
 
 ## Known Failure Cases
 
-1. **Scanned PDFs / Image-only PDFs** — OCR requires Tesseract; quality depends on image clarity
+1. **Scanned PDFs / Image-only PDFs** — OCR quality depends on image clarity
 2. **Very large documents** — Extraction truncates at 12K characters to fit LLM context
 3. **Multi-document queries** — System processes one document at a time
 4. **Ambiguous field names** — Structured extraction may miss non-standard field labels
@@ -247,30 +215,15 @@ Ultra doc/
 │   ├── rag_engine.py           # RAG pipeline + Gemma 3 4B LLM calls
 │   ├── extractor.py            # Structured shipment data extraction
 │   └── guardrails.py           # Hallucination guardrails + confidence scoring
-├── tessdata/                   # Tesseract OCR language data
-│   └── eng.traineddata
-├── models/                     # GGUF model files (NOT committed — too large)
-│   └── .gitkeep                # Placeholder with download instructions
-├── Dockerfile                  # CPU Docker build
-├── Dockerfile.gpu              # GPU Docker build (NVIDIA CUDA 12.1)
-├── docker-compose.yml          # CPU compose
-├── docker-compose.gpu.yml      # GPU compose
+├── tessdata/
+│   └── eng.traineddata         # Tesseract OCR language data
+├── models/                     # Place GGUF model here (not committed to git)
+│   └── gemma-3-4b-it-GGUF/
+│       └── gemma-3-4b-it-Q4_K_M.gguf
 ├── requirements.txt
 ├── .env.example
-├── .gitignore
-├── .dockerignore
 └── README.md
 ```
-
----
-
-## UI Actions
-
-| Action | Description |
-|--------|-------------|
-| **Index Document** | Upload and process a document (PDF, DOCX, TXT, images) |
-| **Get Answer** | Ask a natural language question about the indexed document |
-| **Extract Shipment JSON** | Extract all structured data fields as clean JSON |
 
 ---
 
