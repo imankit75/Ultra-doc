@@ -128,7 +128,9 @@ python app.py <path_to_document>
 
 ## How to Use
 
-1. **Upload a document** — PDF, DOCX, TXT, or image (PNG/JPG)
+> **Sample documents to test with are available in the `Test files/` folder** — includes a pick list (DOCX) and a bill of lading (PDF).
+
+1. **Upload a document** — PDF, DOCX, TXT, or standalone image (PNG/JPG)
 2. Click **"Index Document"** — wait for the status message: `Success: Indexed X chunks`
 3. Type a question in the question box → click **"Get Answer"**
 4. Click **"Extract Shipment JSON"** to extract all structured fields as clean JSON
