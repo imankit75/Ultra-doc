@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+
+# Runtime data (regenerated on each run — bind-mounted in Docker)
+uploads/
+chroma_db/
+
+# Model files (too large for git — mount as Docker volume)
+models/
+# Keep directory structure
+!models/.gitkeep
+
+# Tessdata is included in the repo (needed for Docker COPY)
+# tessdata/ is NOT gitignored
+
+# Environment
+.env
+*.env
+
+# Docker
+.dockerignore
+
+# OS
+.DS_Store
+Thumbs.db

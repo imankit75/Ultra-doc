@@ -1,0 +1,30 @@
+# =============================================================
+# Ultra Doc-Intelligence — CPU Docker Compose
+# Usage: docker compose up --build
+# =============================================================
+
+services:
+  ultra-doc:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ultra-doc:cpu
+    container_name: ultra-doc
+    ports:
+      - "7860:7860"
+    volumes:
+      # Model files (read-only, must be downloaded locally first)
+      - ./models:/app/models:ro
+      # Persistent storage for uploads and vector DB
+      - ./uploads:/app/uploads
+      - ./chroma_db:/app/chroma_db
+    environment:
+      - N_GPU_LAYERS=0        # CPU only
+      - KMP_DUPLICATE_LIB_OK=TRUE
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7860/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s

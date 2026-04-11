@@ -1,0 +1,12 @@
+# Ultra Doc-Intelligence — Dependencies
+# Gemma 3 4B local (GGUF) — fully offline, no cloud APIs
+llama-cpp-python
+python-docx>=1.1
+PyMuPDF>=1.24
+chromadb>=0.5
+sentence-transformers>=3.0
+torch>=2.1
+python-dotenv>=1.0
+gradio>=4.0
+pillow>=10.0
+pytesseract>=0.3

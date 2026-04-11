@@ -1,0 +1,59 @@
+# =============================================================
+# Ultra Doc-Intelligence — GPU Dockerfile (NVIDIA CUDA)
+# Requires: NVIDIA GPU + nvidia-container-toolkit installed on host.
+# Usage:
+#   docker build -t ultra-doc-gpu -f Dockerfile.gpu .
+#   docker run --gpus all -p 7860:7860 -v $(pwd)/models:/app/models ultra-doc-gpu
+# =============================================================
+
+FROM nvidia/cuda:12.1.0-cudnn8-devel-ubuntu22.04
+
+# ---- System dependencies ----
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3.11 \
+    python3.11-dev \
+    python3-pip \
+    build-essential \
+    cmake \
+    git \
+    tesseract-ocr \
+    tesseract-ocr-eng \
+    libgl1 \
+    libglib2.0-0 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Alias python3.11 as python
+RUN update-alternatives --install /usr/bin/python python /usr/bin/python3.11 1 \
+    && update-alternatives --install /usr/bin/pip pip /usr/bin/pip3 1 \
+    && pip install --upgrade pip
+
+WORKDIR /app
+
+# ---- llama-cpp-python with CUDA support ----
+# Must be installed BEFORE other deps so CUDA build flags apply
+RUN CMAKE_ARGS="-DGGML_CUDA=on" FORCE_CMAKE=1 \
+    pip install --no-cache-dir llama-cpp-python
+
+# ---- Remaining Python dependencies ----
+COPY requirements.txt .
+RUN grep -v "^llama-cpp-python" requirements.txt \
+    | pip install --no-cache-dir -r /dev/stdin
+
+# ---- Application code ----
+COPY backend/ ./backend/
+COPY tessdata/ ./tessdata/
+COPY api.py app.py ./
+
+# ---- Runtime directories ----
+RUN mkdir -p uploads chroma_db models
+
+# ---- Environment ----
+ENV KMP_DUPLICATE_LIB_OK=TRUE
+# -1 = offload ALL layers to GPU
+ENV N_GPU_LAYERS=-1
+ENV PYTHONUNBUFFERED=1
+
+EXPOSE 7860
+
+CMD ["python", "api.py"]
