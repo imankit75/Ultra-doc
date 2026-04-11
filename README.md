@@ -63,8 +63,7 @@ Runs **100% locally** — no cloud APIs, no internet required after setup.
 │  ┌─────────────────┐   ┌──────────────┐   ┌──────────────┐  │
 │  │ Document         │──▶│ Embedding    │──▶│ ChromaDB     │  │
 │  │ Processor        │   │ (MiniLM-L6)  │   │ Vector Store │  │
-│  │ (PDF/DOCX/TXT/   │   └──────────────┘   └──────┬───────┘  │
-│  │  PNG/JPG + OCR)  │                              │          │
+│  │ (PDF/DOCX/TXT)    │   └──────────────┘   └──────┬───────┘  │
 │  └─────────────────┘                               ▼          │
 │                                                              │
 │  ┌─────────────────┐   ┌──────────────┐   ┌──────────────┐  │
