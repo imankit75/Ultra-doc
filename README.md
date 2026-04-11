@@ -50,35 +50,16 @@ Runs **100% locally** — no cloud APIs, no internet required after setup.
 
 ## Architecture
 
-```
-                    ┌───────────────────────────────────┐
-                    │          Gradio UI  (api.py)       │
-                    │   Upload · Q&A · JSON Extraction   │
-                    └─────────────────┬─────────────────┘
-                                      │
-                                      ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                         Backend Pipeline                        │
-│                                                                 │
-│  ┌──────────────────┐    ┌──────────────┐    ┌──────────────┐  │
-│  │ Document          │    │  Embeddings  │    │   ChromaDB   │  │
-│  │ Processor         │───▶│  MiniLM-L6   │───▶│ Vector Store │  │
-│  │ PDF · DOCX · TXT  │    │  (384-dim)   │    └──────┬───────┘  │
-│  └──────────────────┘    └──────────────┘           │          │
-│                                                      │          │
-│  ┌──────────────────┐    ┌──────────────┐           │          │
-│  │  Guardrails  +   │    │  RAG Engine  │◀──────────┘          │
-│  │  Confidence      │◀───│              │  Top-K Retrieval      │
-│  │  Scoring         │    └──────┬───────┘                      │
-│  └──────────────────┘           │                              │
-│                                 ▼                              │
-│               ┌─────────────────────────────┐                  │
-│               │   Gemma 3 4B  (GGUF local)  │                  │
-│               │   via llama-cpp-python       │                  │
-│               │   CPU · GPU auto-detected    │                  │
-│               └─────────────────────────────┘                  │
-└─────────────────────────────────────────────────────────────────┘
-```
+The system follows a straightforward pipeline:
+
+1. **Gradio UI** — The user uploads a document and asks questions through a simple web interface.
+2. **Document Processor** — Parses the file (PDF, DOCX, or TXT) and splits it into smart chunks, keeping tables intact.
+3. **Embeddings** — Each chunk is converted into a vector using the MiniLM-L6 sentence transformer model running locally.
+4. **ChromaDB** — The vectors are stored in a local ChromaDB database for fast similarity search.
+5. **Retrieval** — When a question is asked, the top 5 most relevant chunks are retrieved from ChromaDB.
+6. **RAG Engine** — The retrieved chunks are assembled into a context prompt and sent to the LLM.
+7. **Gemma 3 4B (local)** — The fully local GGUF model generates an answer grounded strictly in the retrieved context.
+8. **Guardrails + Confidence** — The answer is checked for reliability before being returned to the user.
 
 ---
 
