@@ -63,45 +63,104 @@ The system follows a straightforward pipeline:
 
 ---
 
-## Quick Start
+## Setup & Installation
 
-### 1. Create and activate a Conda environment
+### Prerequisites
+
+Before starting, make sure you have:
+
+- [Anaconda or Miniconda](https://www.anaconda.com/download) installed
+- At least **8 GB of free RAM**
+- At least **5 GB of free disk space** (for the model + packages)
+
+---
+
+### Step 1 — Create a Conda environment
 
 ```bash
 conda create -n ultra_doc python=3.11 -y
 conda activate ultra_doc
 ```
 
-### 2. Install dependencies
+---
+
+### Step 2 — Install llama-cpp-python (via conda-forge)
+
+> **Why conda and not pip?**
+> `llama-cpp-python` compiles a C++ library during install. On Windows, pip requires Visual Studio Build Tools (which most people don't have). The conda-forge version ships a pre-built binary — no compiler needed.
+
+```bash
+conda install -c conda-forge llama-cpp-python -y
+```
+
+This may take a few minutes to resolve and download.
+
+---
+
+### Step 3 — Install PyTorch (CPU)
+
+> **Important:** Do this step separately before installing the rest of the requirements.
+> The default `pip install torch` fetches the CUDA version, which causes a **DLL error on Windows** (`shm.dll not found`) on machines without an NVIDIA GPU. Use the CPU build instead:
+
+```bash
+pip install torch --index-url https://download.pytorch.org/whl/cpu
+```
+
+---
+
+### Step 4 — Install remaining dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-> **GPU acceleration (optional):** Install llama-cpp-python with CUDA support for faster inference:
-> ```bash
-> CMAKE_ARGS="-DGGML_CUDA=on" pip install llama-cpp-python --force-reinstall
-> ```
-> Then set the environment variable: `set N_GPU_LAYERS=-1` (Windows) or `export N_GPU_LAYERS=-1` (Linux/Mac)
+---
 
-### 3. Download the model
+### Step 5 — Download the model
 
-Download `gemma-3-4b-it-Q4_K_M.gguf` and place it at:
+Download the `gemma-3-4b-it-Q4_K_M.gguf` file and place it **exactly** at:
+
 ```
 models/gemma-3-4b-it-GGUF/gemma-3-4b-it-Q4_K_M.gguf
 ```
 
-> **Download:** https://huggingface.co/bartowski/gemma-3-4b-it-GGUF
+> **Download link:** https://huggingface.co/bartowski/gemma-3-4b-it-GGUF
+>
+> Look for the file named `gemma-3-4b-it-Q4_K_M.gguf` (~2.5 GB).
 
-### 4. Run the Gradio UI
+---
+
+### Step 6 — Run the UI
 
 ```bash
 python api.py
 ```
 
-Open **http://localhost:7860** in your browser.
+Open **http://localhost:7860** in your browser. The app is ready.
 
-### 5. (Optional) CLI mode
+---
+
+### GPU Acceleration (optional)
+
+If you have an NVIDIA GPU, you can run inference significantly faster. After completing the steps above, replace the llama-cpp install with the CUDA version:
+
+```bash
+conda install -c conda-forge llama-cpp-python=*=*cuda* -y
+```
+
+Then tell the app to use the GPU:
+
+```bash
+# Windows
+set N_GPU_LAYERS=-1
+
+# Linux / Mac
+export N_GPU_LAYERS=-1
+```
+
+---
+
+### CLI mode (optional)
 
 ```bash
 python app.py <path_to_document>

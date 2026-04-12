@@ -1,31 +1,32 @@
 # ================================================================
 # Ultra Doc-Intelligence — Python Dependencies
-# Tested with Python 3.11 (conda env: ultra_doc)
+# Python 3.11 | Tested on Windows (conda env)
+#
+# DO NOT run this file directly with `pip install -r requirements.txt`.
+# Follow the step-by-step setup in README.md to avoid build errors.
 # ================================================================
-
-# --- LLM (local GGUF inference) ---
-# For GPU support, reinstall with CUDA flags:
-#   CMAKE_ARGS="-DGGML_CUDA=on" pip install llama-cpp-python --force-reinstall
-llama-cpp-python>=0.3.16
 
 # --- Document parsing ---
 PyMuPDF>=1.27.0          # PDF parsing (import as fitz)
 python-docx>=1.1.0       # DOCX parsing
 
-# --- OCR (optional, for image documents) ---
-pillow>=10.0.0           # Image loading (PIL)
-pytesseract>=0.3.10      # Tesseract OCR wrapper
-                         # Also requires Tesseract binary installed on system:
-                         #   Windows: https://github.com/UB-Mannheim/tesseract/wiki
-                         #   Linux:   sudo apt-get install tesseract-ocr
+# --- OCR (optional) ---
+pillow>=10.0.0
+pytesseract>=0.3.10
 
 # --- Embeddings + Vector store ---
 sentence-transformers>=3.0.0
 chromadb>=0.5.0
 
-# --- Deep learning backend (for sentence-transformers) ---
-# CPU: pip install torch --index-url https://download.pytorch.org/whl/cpu
-# GPU: pip install torch --index-url https://download.pytorch.org/whl/cu121
+# --- Deep learning (for sentence-transformers) ---
+# IMPORTANT: Install torch BEFORE running this file using the command below.
+# Using plain `pip install torch` installs the CUDA version which causes
+# a DLL error on Windows (shm.dll not found). Use the CPU wheel instead:
+#
+#   pip install torch --index-url https://download.pytorch.org/whl/cpu
+#
+# GPU (CUDA 12.1):
+#   pip install torch --index-url https://download.pytorch.org/whl/cu121
 torch>=2.1.0
 
 # --- UI ---
@@ -33,3 +34,13 @@ gradio>=6.0.0
 
 # --- Utilities ---
 python-dotenv>=1.0.0
+
+# ----------------------------------------------------------------
+# llama-cpp-python is NOT listed here because it requires a
+# C++ compiler to build from source on Windows.
+# Install it separately via conda-forge (pre-built binary):
+#
+#   conda install -c conda-forge llama-cpp-python
+#
+# See README.md Step 3 for full instructions.
+# ----------------------------------------------------------------
