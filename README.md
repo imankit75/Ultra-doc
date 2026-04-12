@@ -97,18 +97,9 @@ This may take a few minutes to resolve and download.
 
 ---
 
-### Step 3 — Install PyTorch (CPU)
+### Step 3 — Install all dependencies
 
-> **Important:** Do this step separately before installing the rest of the requirements.
-> The default `pip install torch` fetches the CUDA version, which causes a **DLL error on Windows** (`shm.dll not found`) on machines without an NVIDIA GPU. Use the CPU build instead:
-
-```bash
-pip install torch --index-url https://download.pytorch.org/whl/cpu
-```
-
----
-
-### Step 4 — Install remaining dependencies
+This installs everything including PyTorch (CPU). The `requirements.txt` file handles the correct CPU-only torch wheel automatically — no extra commands needed.
 
 ```bash
 pip install -r requirements.txt
@@ -116,7 +107,7 @@ pip install -r requirements.txt
 
 ---
 
-### Step 5 — Download the model
+### Step 4 — Download the model
 
 Download the `gemma-3-4b-it-Q4_K_M.gguf` file and place it **exactly** at:
 
@@ -130,7 +121,7 @@ models/gemma-3-4b-it-GGUF/gemma-3-4b-it-Q4_K_M.gguf
 
 ---
 
-### Step 6 — Run the UI
+### Step 5 — Run the UI
 
 ```bash
 python api.py
