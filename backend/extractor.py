@@ -1,7 +1,7 @@
 """
 Structured extraction module.
 Extracts shipment / pick-list / order data fields from a logistics document
-using Gemma 3 4B (local GGUF).
+using Gemma 3 4B via HuggingFace Transformers.
 """
 
 import json
@@ -77,7 +77,7 @@ def extract_shipment_data(file_path: str) -> dict:
         return _empty_result("Document is empty or could not be parsed.")
 
     # Truncate if very long (to fit within LLM context window)
-    max_chars = 12000
+    max_chars = config.extract_max_chars
     if len(full_text) > max_chars:
         full_text = full_text[:max_chars] + "\n\n[...document truncated...]"
 
@@ -87,6 +87,7 @@ def extract_shipment_data(file_path: str) -> dict:
         raw_response = call_llm(
             system_prompt=EXTRACTION_SYSTEM_PROMPT,
             user_prompt=user_prompt,
+            max_tokens_override=config.extract_max_tokens,
         )
     except Exception as e:
         return _empty_result(f"LLM call failed: {str(e)}")

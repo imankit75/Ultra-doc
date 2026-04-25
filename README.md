@@ -15,7 +15,7 @@ Runs **100% locally** — no cloud APIs, no internet required after setup.
 | **Guardrails** | Multi-layer hallucination prevention |
 | **Confidence Scoring** | Weighted score from retrieval similarity, chunk agreement, and answer coverage |
 | **Structured Extraction** | Extract shipment data as clean JSON (shipment_id, shipper, consignee, rates, dates, line items…) |
-| **100% Local** | Fully offline with Gemma 3 4B (GGUF) — no cloud APIs required |
+| **100% Local** | Fully offline with Gemma 4 E2B — no cloud APIs required |
 
 ---
 
@@ -56,9 +56,9 @@ The system follows a straightforward pipeline:
 2. **Document Processor** — Parses the file (PDF, DOCX, or TXT) and splits it into smart chunks, keeping tables intact.
 3. **Embeddings** — Each chunk is converted into a vector using the MiniLM-L6 sentence transformer model running locally.
 4. **ChromaDB** — The vectors are stored in a local ChromaDB database for fast similarity search.
-5. **Retrieval** — When a question is asked, the top 5 most relevant chunks are retrieved from ChromaDB.
+5. **Retrieval** — When a question is asked, the top 3 most relevant chunks are retrieved from ChromaDB.
 6. **RAG Engine** — The retrieved chunks are assembled into a context prompt and sent to the LLM.
-7. **Gemma 3 4B (local)** — The fully local GGUF model generates an answer grounded strictly in the retrieved context.
+7. **Gemma 4 E2B (local)** — The model generates an answer grounded strictly in the retrieved context. On GPU: bitsandbytes NF4 4-bit quantization (~3 GB VRAM). On CPU: torchao int8 weight-only quantization.
 8. **Guardrails + Confidence** — The answer is checked for reliability before being returned to the user.
 
 ---
@@ -72,6 +72,7 @@ Before starting, make sure you have:
 - [Anaconda or Miniconda](https://www.anaconda.com/download) installed
 - At least **8 GB of free RAM**
 - At least **5 GB of free disk space** (for the model + packages)
+- **HF_TOKEN** — set in `.env` file if using a gated model from HuggingFace
 
 ---
 
@@ -84,44 +85,43 @@ conda activate ultra_doc
 
 ---
 
-### Step 2 — Install llama-cpp-python (via conda-forge)
+### Step 2 — Install dependencies (automatic)
 
-> **Why conda and not pip?**
-> `llama-cpp-python` compiles a C++ library during install. On Windows, pip requires Visual Studio Build Tools (which most people don't have). The conda-forge version ships a pre-built binary — no compiler needed.
-
-```bash
-conda install -c conda-forge llama-cpp-python -y
-```
-
-This may take a few minutes to resolve and download.
-
----
-
-### Step 3 — Install all dependencies
-
-This installs everything including PyTorch (CPU). The `requirements.txt` file handles the correct CPU-only torch wheel automatically — no extra commands needed.
+The included `install.py` script auto-detects your hardware (CPU vs GPU), selects the correct PyTorch wheel, and installs everything:
 
 ```bash
-pip install -r requirements.txt
+python install.py
 ```
 
----
+This handles:
+- GPU detection via `nvidia-smi`
+- Correct CUDA wheel selection (cu121, cu124, cu126, cu128)
+- All pip dependencies from the appropriate requirements file
 
-### Step 4 — Download the model
-
-Download the `gemma-3-4b-it-Q4_K_M.gguf` file and place it **exactly** at:
-
-```
-models/gemma-3-4b-it-GGUF/gemma-3-4b-it-Q4_K_M.gguf
-```
-
-> **Download link:** https://huggingface.co/bartowski/gemma-3-4b-it-GGUF
+> [!NOTE]
+> **Manual alternative:** If you prefer to install manually:
+> ```bash
+> # GPU
+> pip install -r requirements_gpu.txt
 >
-> Look for the file named `gemma-3-4b-it-Q4_K_M.gguf` (~2.5 GB).
+> # CPU only
+> pip install -r requirements_cpu.txt
+> ```
 
 ---
 
-### Step 5 — Run the UI
+### Step 3 — Configure environment
+
+Copy the example and set your HuggingFace token (needed for first model download):
+
+```bash
+cp .env.example .env
+# Edit .env and set HF_TOKEN=hf_your_token_here
+```
+
+---
+
+### Step 4 — Run the UI
 
 ```bash
 python api.py
@@ -129,24 +129,41 @@ python api.py
 
 Open **http://localhost:7860** in your browser. The app is ready.
 
----
+On first run, the model will be downloaded from HuggingFace Hub (~2.5 GB). Subsequent runs load from cache.
 
-### GPU Acceleration (optional)
+The console will show detailed loading logs:
+```
+============================================================
+  MODEL LOADING
+============================================================
+  Source  : HuggingFace Hub
+  Model   : google/gemma-4-E2B-it
+  Device  : CUDA
+============================================================
+[1/3] Loading tokenizer from HF Hub...
+[2/3] Loading model with bitsandbytes NF4 4-bit quantization...
+[3/3] Verifying GPU placement...
+      VRAM  : 3.1 GB used / 6.0 GB total  (2.9 GB free)
 
-If you have an NVIDIA GPU, you can run inference significantly faster. After completing the steps above, replace the llama-cpp install with the CUDA version:
-
-```bash
-conda install -c conda-forge llama-cpp-python=*=*cuda* -y
+  ✓ Model ready on CUDA!
+============================================================
 ```
 
-Then tell the app to use the GPU:
+---
 
+### Quantization Strategy
+
+| Hardware | Method | VRAM / RAM | Library |
+|----------|--------|-----------|---------|
+| **NVIDIA GPU** | NF4 4-bit (double quantization) | ~3 GB VRAM | bitsandbytes |
+| **CPU only** | int8 weight-only | ~5 GB RAM | torchao |
+
+The system auto-detects your device and applies the appropriate quantization. No manual configuration needed.
+
+Override with environment variable if needed:
 ```bash
-# Windows
-set N_GPU_LAYERS=-1
-
-# Linux / Mac
-export N_GPU_LAYERS=-1
+# Force CPU even on a GPU machine
+set FORCE_DEVICE=cpu
 ```
 
 ---
@@ -163,7 +180,8 @@ python app.py <path_to_document>
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `N_GPU_LAYERS` | `0` | `0` = CPU only · `-1` = all layers on GPU |
+| `FORCE_DEVICE` | auto-detect | `cpu` = force CPU · `cuda` = force GPU |
+| `HF_TOKEN` | — | HuggingFace token for gated model downloads |
 
 ---
 
@@ -197,7 +215,7 @@ Logistics documents contain structured data (addresses, dates, rates) mixed with
 
 - **Embeddings:** `sentence-transformers/all-MiniLM-L6-v2` (384-dim, runs on CPU)
 - **Vector Store:** ChromaDB with cosine similarity
-- **Top-K:** 5 most similar chunks retrieved per query
+- **Top-K:** 3 most similar chunks retrieved per query
 - **Similarity Threshold:** 0.15 minimum (below → refuse to answer)
 
 ### Why MiniLM?
@@ -245,7 +263,7 @@ Color coded:
 ## Known Failure Cases
 
 1. **Scanned PDFs / Image-only PDFs** — OCR quality depends on image clarity
-2. **Very large documents** — Extraction truncates at 12K characters to fit LLM context
+2. **Very large documents** — Extraction truncates at 6K characters to fit LLM context
 3. **Multi-document queries** — System processes one document at a time
 4. **Ambiguous field names** — Structured extraction may miss non-standard field labels
 5. **Non-English documents** — Embeddings and prompts are English-optimized
@@ -269,21 +287,23 @@ Color coded:
 Ultra doc/
 ├── api.py                      # Gradio UI — run this!
 ├── app.py                      # CLI mode (interactive terminal Q&A)
+├── install.py                  # Smart installer (auto-detects CPU/GPU)
 ├── backend/
 │   ├── __init__.py
-│   ├── config.py               # Central config (reads N_GPU_LAYERS from env)
+│   ├── config.py               # Central config (device, tokens, thresholds)
 │   ├── document_processor.py   # Parse PDF/DOCX/TXT/images + table-aware chunking
 │   ├── embedding_store.py      # Sentence-transformers + ChromaDB
-│   ├── rag_engine.py           # RAG pipeline + Gemma 3 4B LLM calls
+│   ├── rag_engine.py           # RAG pipeline + LLM calls + detailed logging
 │   ├── extractor.py            # Structured shipment data extraction
 │   └── guardrails.py           # Hallucination guardrails + confidence scoring
+├── Test files/                 # Sample docs for testing
 ├── tessdata/
 │   └── eng.traineddata         # Tesseract OCR language data
-├── models/                     # Place GGUF model here (not committed to git)
-│   └── gemma-3-4b-it-GGUF/
-│       └── gemma-3-4b-it-Q4_K_M.gguf
-├── requirements.txt
-├── .env.example
+├── models/                     # Local GGUF model (if using offline mode)
+├── requirements.txt            # Base dependencies
+├── requirements_cpu.txt        # CPU-specific dependencies
+├── requirements_gpu.txt        # GPU-specific dependencies
+├── .env.example                # Environment variable template
 └── README.md
 ```
 

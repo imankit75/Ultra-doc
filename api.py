@@ -1,8 +1,4 @@
 import os
-
-# Fix OpenMP DLL conflict between llama-cpp-python and PyTorch on Windows
-os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
-
 import uuid
 import shutil
 import socket
@@ -11,8 +7,13 @@ import gradio as gr
 from backend.config import config
 from backend.document_processor import process_document
 from backend.embedding_store import embedding_store
-from backend.rag_engine import ask_question
+from backend.rag_engine import ask_question, _load_model
 from backend.extractor import extract_shipment_data
+
+# Pre-load the model at startup so it's ready before the UI opens.
+print("Loading model — this may take a moment on first run (downloads ~2-3 GB)...")
+_load_model()
+print("Model ready.")
 
 # ---------------------------------------------------------------------------
 #  Gradio UI Setup
@@ -126,7 +127,7 @@ setInterval(function() {
 
 with gr.Blocks(title="Ultra Doc") as ui:
     gr.HTML("<div class='main-title'>Ultra Doc-Intelligence</div>")
-    gr.HTML("<div class='sub-title'>100% Local Gemma 3 4B • Offline RAG & Extraction</div>")
+    gr.HTML(f"<div class='sub-title'>Gemma 4 E2B • {config.device.upper()} • Offline RAG & Extraction</div>")
     
     with gr.Row():
         # First Column: Document Upload, Indexing, and Q&A Chat

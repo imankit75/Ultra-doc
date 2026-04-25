@@ -1,13 +1,10 @@
 """
 Ultra Doc-Intelligence — CLI (No UI)
 A command-line tool for logistics document Q&A, RAG, and structured extraction.
-Uses Gemma 3 4B (local GGUF) — fully offline, no LM Studio, no cloud APIs.
+Uses Gemma 3 4B via HuggingFace Transformers — fully offline, no cloud APIs.
 """
 
 import os
-
-# Fix OpenMP DLL conflict between llama-cpp-python and PyTorch on Windows
-os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 import sys
 import json
 import uuid
@@ -16,8 +13,12 @@ import shutil
 from backend.config import config
 from backend.document_processor import process_document
 from backend.embedding_store import embedding_store
-from backend.rag_engine import ask_question
+from backend.rag_engine import ask_question, _load_model
 from backend.extractor import extract_shipment_data
+
+print("Loading model — this may take a moment on first run (downloads ~2-3 GB)...")
+_load_model()
+print("Model ready.")
 
 
 # ---------------------------------------------------------------------------
@@ -28,8 +29,8 @@ def print_banner():
     print()
     print("=" * 60)
     print("  🔍 Ultra Doc-Intelligence — CLI Mode")
-    print("  Model: Gemma 3 4B (local GGUF)")
-    print("  100% offline • No LM Studio • No cloud APIs")
+    print(f"  Model: Gemma 4 E2B ({config.device.upper()})")
+    print("  100% offline • No cloud APIs")
     print("=" * 60)
     print()
 

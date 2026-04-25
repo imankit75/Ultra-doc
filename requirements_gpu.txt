@@ -1,0 +1,34 @@
+# ================================================================
+# Ultra Doc-Intelligence — GPU (CUDA) Requirements
+# Installed automatically by: python install.py
+# Or manually:               pip install -r requirements_gpu.txt
+#
+# Requires: NVIDIA GPU + CUDA driver >= 12.1
+# ================================================================
+
+# --- PyTorch (CUDA — default PyPI wheel includes CUDA) ---
+torch>=2.6.0
+
+# --- HuggingFace stack ---
+transformers>=5.0.0
+accelerate>=0.26.0
+torchao>=0.17.0             # PyTorch-native int4 quantization (CPU + GPU, no version conflicts)
+gguf>=0.10.0                # required for loading local GGUF files via transformers
+
+# --- Document parsing ---
+PyMuPDF>=1.27.0             # PDF parsing (import as fitz)
+python-docx>=1.1.0          # DOCX parsing
+
+# --- OCR (optional — requires Tesseract binary on system) ---
+pillow>=10.0.0
+pytesseract>=0.3.10
+
+# --- Embeddings + Vector store ---
+sentence-transformers>=3.0.0
+chromadb>=0.5.0
+
+# --- UI ---
+gradio>=6.0.0
+
+# --- Utilities ---
+python-dotenv>=1.0.0

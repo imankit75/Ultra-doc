@@ -7,6 +7,7 @@ __pycache__/
 # Runtime data (regenerated on each run)
 uploads/
 chroma_db/
+offload_cache/
 
 # Model files (too large for git)
 models/
@@ -19,3 +20,9 @@ models/
 # OS
 .DS_Store
 Thumbs.db
+
+# Tool-specific (not project code)
+.claude/
+CLAUDE.md
+.graphify_python
+graphify-out/
