@@ -6,6 +6,7 @@ using Gemma 3 4B via HuggingFace Transformers.
 
 import json
 import re
+import os
 
 from backend.config import config
 from backend.rag_engine import call_llm
@@ -70,18 +71,27 @@ def extract_shipment_data(file_path: str) -> dict:
     Extract structured shipment/order data from a document.
     Returns a dict with document fields (nulls for missing).
     """
+    filename = os.path.basename(file_path)
+    print(f"\n[EXTRACT] Starting structured extraction: {filename}")
+
     # Get full document text
+    print(f"[EXTRACT] Reading full document text...")
     full_text = get_full_text(file_path)
 
     if not full_text.strip():
+        print(f"[EXTRACT] Document is empty or could not be parsed.")
         return _empty_result("Document is empty or could not be parsed.")
+
+    print(f"[EXTRACT] Document text: {len(full_text):,} chars")
 
     # Truncate if very long (to fit within LLM context window)
     max_chars = config.extract_max_chars
     if len(full_text) > max_chars:
+        print(f"[EXTRACT] Truncating to {max_chars:,} chars (context limit).")
         full_text = full_text[:max_chars] + "\n\n[...document truncated...]"
 
     user_prompt = EXTRACTION_USER_TEMPLATE.format(document_text=full_text)
+    print(f"[EXTRACT] Sending to LLM (max {config.extract_max_tokens} tokens output)...")
 
     try:
         raw_response = call_llm(
@@ -90,10 +100,18 @@ def extract_shipment_data(file_path: str) -> dict:
             max_tokens_override=config.extract_max_tokens,
         )
     except Exception as e:
+        print(f"[EXTRACT] LLM call failed: {e}")
         return _empty_result(f"LLM call failed: {str(e)}")
 
     # Parse JSON from response
-    return _parse_extraction_response(raw_response)
+    print(f"[EXTRACT] Parsing LLM response ({len(raw_response)} chars)...")
+    result = _parse_extraction_response(raw_response)
+    if "_error" in result:
+        print(f"[EXTRACT] Parse warning: {result['_error']}")
+    else:
+        item_count = len(result.get("line_items") or [])
+        print(f"[EXTRACT] Done. Document type: {result.get('document_type')} | Line items: {item_count}\n")
+    return result
 
 
 def _parse_extraction_response(raw: str) -> dict:

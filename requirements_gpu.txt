@@ -12,7 +12,8 @@ torch>=2.6.0
 # --- HuggingFace stack ---
 transformers>=5.0.0
 accelerate>=0.26.0
-torchao>=0.17.0             # PyTorch-native int4 quantization (CPU + GPU, no version conflicts)
+bitsandbytes>=0.43.0        # NF4 4-bit quantization on GPU
+torchao>=0.17.0             # int8 weight-only quantization (CPU fallback)
 gguf>=0.10.0                # required for loading local GGUF files via transformers
 
 # --- Document parsing ---
@@ -32,3 +33,4 @@ gradio>=6.0.0
 
 # --- Utilities ---
 python-dotenv>=1.0.0
+python-dateutil>=2.8.0

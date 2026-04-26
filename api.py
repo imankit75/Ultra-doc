@@ -1,7 +1,14 @@
+import sys
 import os
 import uuid
 import shutil
 import socket
+
+# Force UTF-8 output on Windows (cp1252 by default — breaks non-ASCII chars)
+if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 import gradio as gr
 
 from backend.config import config
@@ -11,7 +18,7 @@ from backend.rag_engine import ask_question, _load_model
 from backend.extractor import extract_shipment_data
 
 # Pre-load the model at startup so it's ready before the UI opens.
-print("Loading model — this may take a moment on first run (downloads ~2-3 GB)...")
+print("Loading model - this may take a moment on first run (downloads ~2-3 GB)...")
 _load_model()
 print("Model ready.")
 

@@ -31,3 +31,4 @@ gradio>=6.0.0
 
 # --- Utilities ---
 python-dotenv>=1.0.0
+python-dateutil>=2.8.0

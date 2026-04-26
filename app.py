@@ -10,6 +10,11 @@ import json
 import uuid
 import shutil
 
+# Force UTF-8 output on Windows (cp1252 by default — breaks non-ASCII chars)
+if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 from backend.config import config
 from backend.document_processor import process_document
 from backend.embedding_store import embedding_store

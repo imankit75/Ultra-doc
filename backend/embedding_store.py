@@ -60,18 +60,24 @@ class EmbeddingStore:
         Embed and store all chunks for a document.
         Returns the number of chunks stored.
         """
+        import time
         collection = self._get_or_create_collection(doc_id)
 
         # Clear existing data for this document (re-upload scenario)
         existing = collection.count()
         if existing > 0:
+            print(f"[EMBED] Clearing {existing} existing chunk(s) for doc {doc_id}...")
             collection.delete(where={"doc_id": doc_id})
 
         if not chunks:
+            print(f"[EMBED] No chunks to index.")
             return 0
 
+        print(f"[EMBED] Embedding {len(chunks)} chunk(s)...")
+        t0 = time.time()
         texts = [c.text for c in chunks]
         embeddings = self.model.encode(texts, show_progress_bar=False).tolist()
+        print(f"[EMBED] Embedding done in {time.time() - t0:.1f}s. Storing in ChromaDB...")
 
         ids = [f"{doc_id}_chunk_{c.chunk_id}" for c in chunks]
         metadatas = [
@@ -90,6 +96,7 @@ class EmbeddingStore:
             documents=texts,
             metadatas=metadatas,
         )
+        print(f"[EMBED] Indexed {len(chunks)} chunk(s) successfully.")
 
         return len(chunks)
 

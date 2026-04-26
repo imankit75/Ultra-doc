@@ -206,7 +206,11 @@ def process_document(file_path: str) -> List[DocumentChunk]:
     Full pipeline: parse document → chunk text → return DocumentChunk objects.
     """
     filename = os.path.basename(file_path)
+    ext = os.path.splitext(file_path)[1].upper()
+    print(f"[DOC] Parsing {ext} file: {filename}")
+
     pages = parse_document(file_path)
+    print(f"[DOC] Parsed {len(pages)} page(s). Chunking text...")
 
     all_chunks = []
     chunk_id = 0
@@ -225,6 +229,7 @@ def process_document(file_path: str) -> List[DocumentChunk]:
             ))
             chunk_id += 1
 
+    print(f"[DOC] Created {len(all_chunks)} chunk(s) from {len(pages)} page(s).")
     return all_chunks
 
 

@@ -1,11 +1,12 @@
 """
 RAG Engine module.
-Retrieves relevant chunks, constructs prompts, queries Gemma 3 4B via
+Retrieves relevant chunks, constructs prompts, queries the LLM via
 HuggingFace Transformers, and applies guardrails + confidence scoring.
 
 Device adaptation (auto-detected via config.device):
-  GPU (CUDA) — int4 weight-only quantization via torchao (~3 GB VRAM)
-  CPU        — int4 weight-only quantization via torchao
+  cuda  — NF4 4-bit quantization via bitsandbytes  (~3 GB VRAM)
+  mps   — float16, no quantization (Apple Silicon)  (~4 GB unified memory)
+  cpu   — int8 weight-only quantization via torchao (~5 GB RAM)
 """
 
 import re
@@ -28,14 +29,6 @@ def _load_model():
     Loading order:
       1. Local GGUF file  — used when HF_TOKEN is absent and GGUF file exists on disk.
       2. HuggingFace Hub  — used when HF_TOKEN env var is set (gated/latest models).
-
-    Quantization:
-      - Weights loaded to CPU first in bfloat16 (safe for any RAM size).
-      - torchao Int4WeightOnlyConfig applied in-place (group_size=128).
-      - Model moved to CUDA after quantization to avoid VRAM overflow during load.
-
-    Returns:
-        (_model, _tokenizer) tuple — both are module-level singletons.
     """
     global _model, _tokenizer
     if _model is not None:
@@ -46,8 +39,6 @@ def _load_model():
 
     gguf_path = _os.path.join(config.local_model_dir, config.gguf_file)
     hf_token = _os.getenv("HF_TOKEN")
-
-    # Prefer HF Hub when a token is available; fall back to local GGUF otherwise.
     use_local = not hf_token and _os.path.exists(gguf_path)
 
     print("\n" + "="*60)
@@ -63,7 +54,7 @@ def _load_model():
             pretrained_model_name_or_path=config.local_model_dir,
             gguf_file=config.gguf_file,
         )
-        print("[1/4] Loading tokenizer from local GGUF...")
+        print("[1/3] Loading tokenizer from local GGUF...")
         _tokenizer = AutoTokenizer.from_pretrained(
             config.local_model_dir, gguf_file=config.gguf_file
         )
@@ -74,81 +65,114 @@ def _load_model():
         print(f"  HF token: {'SET' if hf_token else 'NOT SET (public model only)'}")
         print("="*60)
         load_kwargs = dict(pretrained_model_name_or_path=config.model_id)
-        print("[1/4] Loading tokenizer from HF Hub...")
+        print("[1/3] Loading tokenizer from HF Hub...")
         _tokenizer = AutoTokenizer.from_pretrained(config.model_id, token=hf_token)
 
     print("      Tokenizer loaded.\n")
 
-    # ---- Quantization strategy ----
-    # CUDA  → bitsandbytes NF4 4-bit (loaded directly via BitsAndBytesConfig)
-    # CPU   → torchao int8 weight-only (bitsandbytes requires CUDA)
+    # -----------------------------------------------------------------------
+    # CUDA — NF4 4-bit via bitsandbytes
+    # -----------------------------------------------------------------------
     if config.device == "cuda":
         from transformers import BitsAndBytesConfig
 
+        vram_total = torch.cuda.get_device_properties(0).total_memory / 1024**3
+        # Reserve 20% headroom for KV cache, minimum 1 GB
+        max_vram = max(1.0, vram_total * 0.80)
+
         print("[2/3] Loading model with bitsandbytes NF4 4-bit quantization...")
-        print("      (first run may take 1-2 min — downloading safetensors from HF Hub)")
-        print("      NF4 4-bit: ~3 GB VRAM on RTX 4050 (vs ~5.9 GB for int8)")
+        print(f"      GPU VRAM : {vram_total:.1f} GB total  ({max_vram:.1f} GB reserved for model)")
+        print("      (first run downloads model from HF Hub — may take a few minutes)")
         t0 = time.time()
 
         bnb_config = BitsAndBytesConfig(
             load_in_4bit=True,
             bnb_4bit_quant_type="nf4",
             bnb_4bit_compute_dtype=torch.bfloat16,
-            bnb_4bit_use_double_quant=True,   # nested quantization — saves ~0.4 GB extra
+            bnb_4bit_use_double_quant=True,
         )
+
+        try:
+            _model = AutoModelForCausalLM.from_pretrained(
+                **load_kwargs,
+                quantization_config=bnb_config,
+                device_map={"": 0},
+                max_memory={0: f"{max_vram:.0f}GiB"},
+                token=hf_token if not use_local else None,
+            )
+        except torch.cuda.OutOfMemoryError:
+            print("\n  WARNING: GPU out of memory — falling back to CPU (int8).")
+            torch.cuda.empty_cache()
+            config.device = "cpu"
+            _model = _load_cpu(load_kwargs, hf_token, use_local)
+
+        if config.device == "cuda":
+            print(f"      Model loaded + quantized in {time.time() - t0:.1f}s.\n")
+            print("[3/3] Verifying GPU placement...")
+            vram_used = torch.cuda.memory_allocated() / 1024**3
+            vram_free = vram_total - vram_used
+            print(f"      GPU   : {torch.cuda.get_device_name(0)}")
+            print(f"      VRAM  : {vram_used:.1f} GB used / {vram_total:.1f} GB total  ({vram_free:.1f} GB free)")
+
+    # -----------------------------------------------------------------------
+    # MPS — Apple Silicon (float16, no quantization)
+    # -----------------------------------------------------------------------
+    elif config.device == "mps":
+        print("[2/3] Loading model for Apple Silicon (MPS)...")
+        print("      Using float16 — bitsandbytes not supported on MPS")
+        print("      (first run downloads model from HF Hub — may take a few minutes)")
+        t0 = time.time()
 
         _model = AutoModelForCausalLM.from_pretrained(
             **load_kwargs,
-            quantization_config=bnb_config,
-            device_map={"": 0},           # force all layers to GPU 0
-            max_memory={0: "5GiB"},       # leave ~1 GB headroom for KV cache
+            torch_dtype=torch.float16,
+            device_map="mps",
             token=hf_token if not use_local else None,
         )
-        print(f"      Model loaded + quantized in {time.time() - t0:.1f}s.\n")
+        print(f"      Model loaded in {time.time() - t0:.1f}s.\n")
+        print("[3/3] Verifying MPS placement...")
+        print(f"      Device: Apple Silicon MPS")
 
-        print("[3/3] Verifying GPU placement...")
-        vram_used  = torch.cuda.memory_allocated() / 1024**3
-        vram_total = torch.cuda.get_device_properties(0).total_memory / 1024**3
-        vram_free  = vram_total - vram_used
-        print(f"      GPU   : {torch.cuda.get_device_name(0)}")
-        print(f"      VRAM  : {vram_used:.1f} GB used / {vram_total:.1f} GB total  ({vram_free:.1f} GB free)")
-
+    # -----------------------------------------------------------------------
+    # CPU — int8 weight-only via torchao
+    # -----------------------------------------------------------------------
     else:
-        from torchao.quantization import quantize_, Int8WeightOnlyConfig
+        _model = _load_cpu(load_kwargs, hf_token, use_local)
 
-        print("[2/3] Loading model weights to CPU in bfloat16...")
-        print("      (first run may take 1-2 min — downloading safetensors from HF Hub)")
-        t0 = time.time()
-        _model = AutoModelForCausalLM.from_pretrained(
-            **load_kwargs,
-            torch_dtype=torch.bfloat16,
-            device_map="cpu",
-            token=hf_token if not use_local else None,
-        )
-        print(f"      Weights loaded in {time.time() - t0:.1f}s.\n")
-
-        print("[3/3] Applying int8 weight-only quantization (CPU fallback)...")
-        t0 = time.time()
-        quantize_(_model, Int8WeightOnlyConfig())
-        print(f"      Quantization done in {time.time() - t0:.1f}s.")
-
-    print(f"\n  ✓ Model ready on {config.device.upper()}!")
+    print(f"\n  [OK] Model ready on {config.device.upper()}!")
     print("="*60 + "\n")
     return _model, _tokenizer
 
 
+def _load_cpu(load_kwargs: dict, hf_token, use_local: bool):
+    """Load model on CPU with torchao int8 weight-only quantization."""
+    from transformers import AutoModelForCausalLM
+    from torchao.quantization import quantize_, Int8WeightOnlyConfig
+
+    print("[2/3] Loading model weights to CPU in bfloat16...")
+    print("      (first run downloads model from HF Hub — may take a few minutes)")
+    t0 = time.time()
+    model = AutoModelForCausalLM.from_pretrained(
+        **load_kwargs,
+        torch_dtype=torch.bfloat16,
+        device_map="cpu",
+        token=hf_token if not use_local else None,
+    )
+    print(f"      Weights loaded in {time.time() - t0:.1f}s.\n")
+
+    print("[3/3] Applying int8 weight-only quantization...")
+    t0 = time.time()
+    try:
+        quantize_(model, Int8WeightOnlyConfig())
+        print(f"      Quantization done in {time.time() - t0:.1f}s.")
+    except Exception as e:
+        print(f"      WARN: torchao quantization failed ({e}) — using bfloat16 (higher RAM).")
+
+    return model
+
+
 def call_llm(system_prompt: str, user_prompt: str, max_tokens_override: int = None) -> str:
-    """Call the LLM locally via HuggingFace Transformers generate().
-
-    Args:
-        system_prompt:      Instruction context for the LLM (role, rules, etc.).
-        user_prompt:        The actual content/question to send to the model.
-        max_tokens_override: If set, use this instead of config.max_new_tokens.
-                             Extraction passes 1024; RAG Q&A uses 512 (default).
-
-    Returns:
-        Decoded response string from the model (newly generated tokens only).
-    """
+    """Call the LLM locally via HuggingFace Transformers generate()."""
     model, tokenizer = _load_model()
 
     max_new_tokens = max_tokens_override if max_tokens_override else config.max_new_tokens
@@ -179,7 +203,6 @@ def call_llm(system_prompt: str, user_prompt: str, max_tokens_override: int = No
         )
 
     elapsed = time.time() - t0
-    # Decode only the newly generated tokens (skip the input prompt)
     new_tokens = output_ids[0][inputs["input_ids"].shape[1]:]
     output_token_count = new_tokens.shape[0]
     tps = output_token_count / elapsed if elapsed > 0 else 0
@@ -247,13 +270,19 @@ def ask_question(doc_id: str, question: str) -> dict:
     summary_keywords = ["what is this", "what's this", "summarize", "summary", "overview", "about", "what is the doc"]
     is_summary = any(kw in lower_q for kw in summary_keywords)
 
-    # 1. Retrieve relevant chunks
+    mode = "SUMMARY" if is_summary else "Q&A"
+    print(f"\n[RAG] Question received ({mode}): {question[:80]}{'...' if len(question) > 80 else ''}")
+
+    print(f"[RAG] Retrieving chunks from vector store...")
     if is_summary:
         search_results = embedding_store.get_first_chunks(doc_id, k=3)
     else:
         search_results = embedding_store.search(doc_id, question)
 
-    # 2. Format sources for output
+    print(f"[RAG] Retrieved {len(search_results)} chunk(s).")
+    if search_results:
+        print(f"      Top similarity: {search_results[0][1]:.3f}")
+
     sources = [
         {
             "text": text,
@@ -263,17 +292,16 @@ def ask_question(doc_id: str, question: str) -> dict:
         for text, sim, meta in search_results
     ]
 
-    # 3. Build context from retrieved chunks
     context_parts = []
     for i, (text, sim, meta) in enumerate(search_results, 1):
         context_parts.append(f"[Source {i} | Page {meta.get('page', '?')} | Similarity: {sim:.2f}]\n{text}")
     context = "\n\n".join(context_parts) if context_parts else "No relevant context found."
 
-    # 4. Early guardrail check (before calling LLM, to save compute)
     preliminary_confidence = compute_confidence(search_results, "")
     preliminary_guardrail = apply_guardrails(search_results, preliminary_confidence)
 
     if not preliminary_guardrail["passed"]:
+        print(f"[RAG] Guardrail blocked (pre-LLM): {preliminary_guardrail['reason']}")
         return {
             "answer": preliminary_guardrail["reason"],
             "sources": sources,
@@ -281,7 +309,6 @@ def ask_question(doc_id: str, question: str) -> dict:
             "guardrail": preliminary_guardrail,
         }
 
-    # 5. Call LLM
     if is_summary:
         user_prompt = SUMMARY_USER_TEMPLATE.format(context=context, question=question)
         system_prompt = SUMMARY_SYSTEM_PROMPT
@@ -290,10 +317,7 @@ def ask_question(doc_id: str, question: str) -> dict:
         system_prompt = RAG_SYSTEM_PROMPT
 
     try:
-        answer = call_llm(
-            system_prompt=system_prompt,
-            user_prompt=user_prompt,
-        )
+        answer = call_llm(system_prompt=system_prompt, user_prompt=user_prompt)
     except Exception as e:
         return {
             "answer": f"Error calling LLM: {str(e)}",
@@ -302,14 +326,16 @@ def ask_question(doc_id: str, question: str) -> dict:
             "guardrail": {"passed": False, "reason": f"LLM call failed: {str(e)}"},
         }
 
-    # 6. Post-answer confidence scoring
     confidence = compute_confidence(search_results, answer)
     guardrail = apply_guardrails(search_results, confidence)
 
     if not guardrail["passed"]:
+        print(f"[RAG] Guardrail blocked (post-LLM): {guardrail['reason']}")
         answer = guardrail["reason"]
 
-    # Clean up internal parsing markers before displaying to user
+    conf_score = confidence["confidence_score"]
+    print(f"[RAG] Confidence: {conf_score:.1%} | Guardrail: {'PASS' if guardrail['passed'] else 'BLOCK'}\n")
+
     final_answer = re.sub(r'\[HEADER\]\s*', '', answer)
     final_answer = re.sub(r'\[ROW \d+\]\s*', '', final_answer)
 
